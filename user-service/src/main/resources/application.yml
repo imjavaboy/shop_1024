@@ -1,0 +1,56 @@
+server:
+  port: 9001
+spring:
+  application:
+    name: xdclass-user-service
+
+#数据库配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/xdclass_user?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456789g
+#redis 配置
+  redis:
+    host: 127.0.0.1
+    port: 6379
+
+#邮箱配置
+  mail:
+    host: smtp.qq.com
+    protocol: smtp
+    username: 1159311344@qq.com
+    from: 1159311344@qq.com
+    password: npwnyelwijvabadb
+    default-encoding: UTF-8
+    port: 465
+    properties:
+      mail:
+        transport:
+          protocol: smtp
+        smtp:
+          socketFactory:
+            class: javax.net.ssl.SSLSocketFactory
+            port: ${spring.mail.port}
+          auth: true
+          starttls:
+            enable: true
+            required: true
+
+#配置plus打印sql日志
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+
+#设置日志级别,ERROR/WARN/INFO/DEBUG,默认是INFO以上才显示
+logging:
+  level:
+    root: INFO
+#阿里云OSS配置
+aliyun:
+  oss:
+    endpoint: oss-cn-beijing.aliyuncs.com
+    access-key-id: LTAI5tKrTi1dfKvZ7TuMQWJd
+    access-key-secret: ynk6dFhCrR69xErZ062gsbEFexqmDJ
+    bucketname: shope-mall
