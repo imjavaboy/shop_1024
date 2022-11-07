@@ -21,11 +21,16 @@ import com.gbq.vo.CouponVo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -44,6 +49,8 @@ public class CouponServiceImpl extends ServiceImpl<CouponMapper, CouponDO> imple
     private CouponMapper couponMapper;
     @Autowired
     private CouponRecordMapper couponRecordMapper;
+    @Autowired
+    private StringRedisTemplate redisTemplate;
 
     @Override
     public Map<String, Object> pageCouponActivity(int page, int size) {
@@ -82,6 +89,37 @@ public class CouponServiceImpl extends ServiceImpl<CouponMapper, CouponDO> imple
     public JsonData addCoupon(long couponId, CouponCategoryEnum promotion) {
 
         LoginUser loginUser = LoginInterceptor.threadLocal.get();
+
+        //分布式锁
+        /**
+         * 由于redis的锁，sentx和expire之间不是原子操作，容易在成失败
+         * 多线程状态下容易造成时间未执行完，到期释放锁，然后别的线程执行，有释放，所以最后是释放了别人的锁
+         * 使用lua+redis保证多个命令的原子性
+         * */
+        String uuid = CommonUtil.generateUUID();
+        String lockKey = "lock:coupon:"+couponId;
+
+        Boolean nativeLock = redisTemplate.opsForValue().setIfAbsent(lockKey, uuid, Duration.ofSeconds(30));
+        if (nativeLock){
+            log.info("加锁，{}",nativeLock);
+            try {
+                //执行业务 TODO
+
+            }finally {
+                String script = "if redis.call('get', KEYS[1]) == AVG[1]  then redis.call('del',KEYS[1] ) else return 0 end";
+                Integer result = redisTemplate.execute(new DefaultRedisScript<>(script, Integer.class), Arrays.asList(lockKey), uuid);
+                log.info("解锁，{}",result);
+            }
+        }else{
+            //加锁失败，自旋重试加锁
+            try {
+                TimeUnit.MICROSECONDS.sleep(100L);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            return addCoupon(couponId,promotion);
+        }
+
         CouponDO couponDO = couponMapper.selectOne(new QueryWrapper<CouponDO>()
                 .eq("id", couponId)
                 .eq("category", promotion.name())
