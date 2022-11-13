@@ -4,6 +4,7 @@ package com.gbq;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 /**
  * @author 郭本琪
@@ -14,6 +15,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 @MapperScan("com.gbq.mapper")
+@EnableTransactionManagement
 public class CouponApplication {
 
     public static void main(String [] args){

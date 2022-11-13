@@ -2,6 +2,9 @@ package com.gbq.service;
 
 import com.gbq.model.CouponRecordDO;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.gbq.vo.CouponRecordVo;
+
+import java.util.Map;
 
 /**
  * <p>
@@ -13,4 +16,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface CouponRecordService extends IService<CouponRecordDO> {
 
+    Map<String, Object> pageCouponRecord(int page, int size);
+
+    CouponRecordVo findById(long recordId);
 }

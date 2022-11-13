@@ -11,5 +11,14 @@
 
     <artifactId>product-service</artifactId>
 
+    <dependencies>
+        <dependency>
+            <groupId>com.gbq</groupId>
+            <artifactId>common</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+    </dependencies>
+
 
 </project>

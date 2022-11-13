@@ -13,23 +13,25 @@ import com.gbq.model.CouponDO;
 import com.gbq.mapper.CouponMapper;
 import com.gbq.model.CouponRecordDO;
 import com.gbq.model.LoginUser;
+import com.gbq.request.NewUserCouponRequest;
 import com.gbq.service.CouponService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.gbq.util.CommonUtil;
 import com.gbq.util.JsonData;
 import com.gbq.vo.CouponVo;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -51,6 +53,8 @@ public class CouponServiceImpl extends ServiceImpl<CouponMapper, CouponDO> imple
     private CouponRecordMapper couponRecordMapper;
     @Autowired
     private StringRedisTemplate redisTemplate;
+    @Autowired
+    private RedissonClient redissonClient;
 
     @Override
     public Map<String, Object> pageCouponActivity(int page, int size) {
@@ -86,73 +90,85 @@ public class CouponServiceImpl extends ServiceImpl<CouponMapper, CouponDO> imple
      * @return
      */
     @Override
+    @Transactional(rollbackFor=Exception.class,propagation= Propagation.REQUIRED)
     public JsonData addCoupon(long couponId, CouponCategoryEnum promotion) {
 
         LoginUser loginUser = LoginInterceptor.threadLocal.get();
-
+        log.info("userId,,,{}",loginUser);
         //分布式锁
         /**
          * 由于redis的锁，sentx和expire之间不是原子操作，容易在成失败
          * 多线程状态下容易造成时间未执行完，到期释放锁，然后别的线程执行，有释放，所以最后是释放了别人的锁
          * 使用lua+redis保证多个命令的原子性
          * */
-        String uuid = CommonUtil.generateUUID();
+//        String uuid = CommonUtil.generateUUID();
+//        String lockKey = "lock:coupon:"+couponId;
+//
+//        Boolean nativeLock = redisTemplate.opsForValue().setIfAbsent(lockKey, uuid, Duration.ofSeconds(30));
+//        if (nativeLock){
+//            log.info("加锁，{}",nativeLock);
+//            try {
+//                //执行业务 TODO
+//
+//            }finally {
+//                String script = "if redis.call('get', KEYS[1]) == AVG[1]  then redis.call('del',KEYS[1] ) else return 0 end";
+//                Integer result = redisTemplate.execute(new DefaultRedisScript<>(script, Integer.class), Arrays.asList(lockKey), uuid);
+//                log.info("解锁，{}",result);
+//            }
+//        }else{
+//            //加锁失败，自旋重试加锁
+//            try {
+//                TimeUnit.MICROSECONDS.sleep(100L);
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+//            return addCoupon(couponId,promotion);
+//        }
+
         String lockKey = "lock:coupon:"+couponId;
+        RLock lock = redissonClient.getLock(lockKey);
 
-        Boolean nativeLock = redisTemplate.opsForValue().setIfAbsent(lockKey, uuid, Duration.ofSeconds(30));
-        if (nativeLock){
-            log.info("加锁，{}",nativeLock);
-            try {
-                //执行业务 TODO
+        lock.lock();
+        log.info("加锁成功，{}",Thread.currentThread().getId());
 
-            }finally {
-                String script = "if redis.call('get', KEYS[1]) == AVG[1]  then redis.call('del',KEYS[1] ) else return 0 end";
-                Integer result = redisTemplate.execute(new DefaultRedisScript<>(script, Integer.class), Arrays.asList(lockKey), uuid);
-                log.info("解锁，{}",result);
+        try {
+            CouponDO couponDO = couponMapper.selectOne(new QueryWrapper<CouponDO>()
+                    .eq("id", couponId)
+                    .eq("category", promotion.name())
+                    .eq("publish", CouponPublishEnums.PUBLISH));
+
+            if (couponDO == null) {
+                throw new BizException(BizCodeEnum.COUPON_NO_EXITS);
             }
-        }else{
-            //加锁失败，自旋重试加锁
-            try {
-                TimeUnit.MICROSECONDS.sleep(100L);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+
+            //检查
+            this.checkCoupon(couponDO,loginUser.getId());
+
+            //构建记录
+            CouponRecordDO couponRecordDO = new CouponRecordDO();
+            BeanUtils.copyProperties(couponDO,couponRecordDO);
+
+            couponRecordDO.setCreateTime(new Date());
+            couponRecordDO.setUseState(CouponStateEnum.NEW.name());
+            couponRecordDO.setUserId(loginUser.getId());
+            couponRecordDO.setUserName(loginUser.getName());
+            couponRecordDO.setCouponId(couponId);
+            couponRecordDO.setId(null);
+
+
+            //扣减 TODO
+            int rows =  couponMapper.reduceStock(couponId);
+
+            if (1 == rows){
+                couponRecordMapper.insert(couponRecordDO);
+            }else {
+                log.warn("发放优惠券失败");
+                throw new BizException(BizCodeEnum.COUPON_NO_STOCK);
             }
-            return addCoupon(couponId,promotion);
+        } finally {
+            lock.unlock();
+            log.info("优惠券接口解锁成功，{}",Thread.currentThread().getId());
         }
-
-        CouponDO couponDO = couponMapper.selectOne(new QueryWrapper<CouponDO>()
-                .eq("id", couponId)
-                .eq("category", promotion.name())
-                .eq("publish", CouponPublishEnums.PUBLISH));
-
-        if (couponDO == null) {
-            throw new BizException(BizCodeEnum.COUPON_NO_EXITS);
-        }
-
-        //检查
-        this.checkCoupon(couponDO,loginUser.getId());
-
-        //构建记录
-        CouponRecordDO couponRecordDO = new CouponRecordDO();
-        BeanUtils.copyProperties(couponDO,couponRecordDO);
-
-        couponRecordDO.setCreateTime(new Date());
-        couponRecordDO.setUseState(CouponStateEnum.NEW.name());
-        couponRecordDO.setUserId(loginUser.getId());
-        couponRecordDO.setUserName(loginUser.getName());
-        couponRecordDO.setCouponId(couponId);
-        couponRecordDO.setId(null);
-
-
-        //扣减 TODO
-       int rows =  couponMapper.reduceStock(couponId);
-
-       if (1 == rows){
-           couponRecordMapper.insert(couponRecordDO);
-       }else {
-           log.warn("发放优惠券失败");
-           throw new BizException(BizCodeEnum.COUPON_NO_STOCK);
-       }
 
 
         return JsonData.buildSuccess();
@@ -165,6 +181,7 @@ public class CouponServiceImpl extends ServiceImpl<CouponMapper, CouponDO> imple
      * @return
      */
     private void checkCoupon(CouponDO couponDO, Long id) {
+        log.info("222222222222");
         if (couponDO == null){
             throw new BizException(BizCodeEnum.COUPON_NO_EXITS);
         }
@@ -175,6 +192,7 @@ public class CouponServiceImpl extends ServiceImpl<CouponMapper, CouponDO> imple
         if (!couponDO.getPublish().equals(CouponPublishEnums.PUBLISH.name())){
             throw new BizException(BizCodeEnum.COUPON_GET_FAIL);
         }
+        log.info("233333333333333332");
         long currentTimestamp = CommonUtil.getCurrentTimestamp();
 
         long start = couponDO.getStartTime().getTime();
@@ -182,6 +200,7 @@ public class CouponServiceImpl extends ServiceImpl<CouponMapper, CouponDO> imple
         if (currentTimestamp < start || currentTimestamp > endTime){
             throw new BizException(BizCodeEnum.COUPON_OUT_OF_TIME);
         }
+        log.info("444444444444");
         Integer integer = couponRecordMapper.selectCount(new QueryWrapper<CouponRecordDO>()
                 .eq("coupon_id", couponDO.getId())
                 .eq("user_id", id));
@@ -189,5 +208,23 @@ public class CouponServiceImpl extends ServiceImpl<CouponMapper, CouponDO> imple
             throw new BizException(BizCodeEnum.COUPON_OUT_OF_LIMIT);
         }
 
+    }
+
+    @Transactional(rollbackFor=Exception.class,propagation= Propagation.REQUIRED)
+    @Override
+    public JsonData initUserCoupon(NewUserCouponRequest newUserCouponRequest) {
+        //TODO
+        LoginUser loginUser = new LoginUser();
+        loginUser.setId(newUserCouponRequest.getUserId());
+        loginUser.setName(newUserCouponRequest.getName());
+
+        List<CouponDO> couponDOList = couponMapper.selectList(new QueryWrapper<CouponDO>()
+                .eq("category", CouponCategoryEnum.NEW_USER.name()));
+
+        for (CouponDO couponDO : couponDOList) {
+            log.info("{},helllo",couponDO.getId());
+            this.addCoupon(couponDO.getId(),CouponCategoryEnum.NEW_USER);
+        }
+        return JsonData.buildSuccess();
     }
 }
