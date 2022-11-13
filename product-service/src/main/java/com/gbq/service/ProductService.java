@@ -2,6 +2,10 @@ package com.gbq.service;
 
 import com.gbq.model.ProductDO;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.gbq.model.vo.ProductVO;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * <p>
@@ -13,4 +17,9 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface ProductService extends IService<ProductDO> {
 
+    Map<String, Object> pageProduct(int page, int size);
+
+    ProductVO findDetailById(long productId);
+
+    List<ProductVO> findProductsByIdBatch(List<Long> productIdList);
 }
