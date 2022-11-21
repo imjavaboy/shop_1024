@@ -2,6 +2,8 @@ package com.gbq.service;
 
 import com.gbq.model.ProductOrderDO;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.gbq.request.ConfirmRequest;
+import com.gbq.util.JsonData;
 
 /**
  * <p>
@@ -13,4 +15,5 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface ProductOrderService extends IService<ProductOrderDO> {
 
+    JsonData confirmOrder(ConfirmRequest orderRequest);
 }

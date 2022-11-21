@@ -3,6 +3,13 @@ server:
 spring:
   application:
     name: xdclass-user-service
+    #   注册中心
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 8.140.125.78:8848
+
+
 
 #数据库配置
   datasource:
@@ -54,3 +61,12 @@ aliyun:
     access-key-id: LTAI5tKrTi1dfKvZ7TuMQWJd
     access-key-secret: ynk6dFhCrR69xErZ062gsbEFexqmDJ
     bucketname: shope-mall
+
+
+#seata:
+#  tx-service-group: ${spring.application.name}-group
+#  service:
+#    grouplist:
+#      xdclass: 8.140.125.78:8091
+#    vgroup-mapping:
+#      xdclass-user-service-group: xdclass

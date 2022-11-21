@@ -3,6 +3,12 @@ server:
 spring:
   application:
     name: xdclass-coupon-service
+#   注册中心
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 8.140.125.78:8848
+
 
 #数据库配置
   datasource:
@@ -18,6 +24,7 @@ spring:
 
 
 
+
 #配置plus打印sql日志
 mybatis-plus:
   configuration:
@@ -29,3 +36,11 @@ logging:
   level:
     root: INFO
 
+##seata配置
+#seata:
+#  tx-service-group: ${spring.application.name}-group
+#  service:
+#    grouplist:
+#      xdclass: 8.140.125.78:8091
+#    vgroup-mapping:
+#      xdclass-coupon-service-group: xdclass

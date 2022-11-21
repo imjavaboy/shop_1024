@@ -2,7 +2,13 @@ server:
   port: 9004
 spring:
   application:
-    name: xdclass-product-service
+    name: xdclass-order-service
+    #   注册中心
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 8.140.125.78:8848
+
 
 #数据库配置
   datasource:

@@ -3,7 +3,10 @@ server:
 spring:
   application:
     name: xdclass-product-service
-
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 8.140.125.78:8848
 #数据库配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver

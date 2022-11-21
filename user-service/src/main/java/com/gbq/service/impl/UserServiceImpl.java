@@ -4,10 +4,12 @@ package com.gbq.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.gbq.enums.BizCodeEnum;
 import com.gbq.enums.SendCodeEnum;
+import com.gbq.fegin.CouponFeginService;
 import com.gbq.interceptor.LoginInterceptor;
 import com.gbq.mapper.UserMapper;
 import com.gbq.model.LoginUser;
 import com.gbq.model.UserDO;
+import com.gbq.model.vo.NewUserCouponRequestVo;
 import com.gbq.model.vo.UserVo;
 import com.gbq.request.UserLoginRequest;
 import com.gbq.request.UserRequestRegister;
@@ -16,6 +18,7 @@ import com.gbq.service.UserService;
 import com.gbq.util.CommonUtil;
 import com.gbq.util.JWTUtil;
 import com.gbq.util.JsonData;
+import io.seata.spring.annotation.GlobalTransactional;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.Md5Crypt;
 import org.apache.commons.lang3.StringUtils;
@@ -23,6 +26,8 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PostMapping;
 
 import java.util.Date;
@@ -40,6 +45,8 @@ import java.util.UUID;
 @Slf4j
 public class UserServiceImpl implements UserService {
 
+    @Autowired
+    private CouponFeginService couponFeginService;
 
     @Autowired
     private NotifyService notifyService;
@@ -60,6 +67,8 @@ public class UserServiceImpl implements UserService {
      * @return
      */
     @Override
+    @Transactional(rollbackFor=Exception.class,propagation= Propagation.REQUIRED)
+//    @GlobalTransactional
     public JsonData register(UserRequestRegister requestRegister) {
         boolean checkCode = false;
         if (StringUtils.isNotBlank(requestRegister.getMail())) {
@@ -88,6 +97,9 @@ public class UserServiceImpl implements UserService {
             log.info("rows:{},注册成功:{}",insert,userDO.toString());
             //新用户注册成功，初始化信息，发放福利等 TODO
             userRegisterInitTask(userDO);
+
+
+//            int b = 1/0;
             return JsonData.buildSuccess();
         }else {
             return JsonData.buildResult(BizCodeEnum.ACCOUNT_REPEAT);
@@ -144,15 +156,21 @@ public class UserServiceImpl implements UserService {
         return userVo;
     }
 
-    private void userRegisterInitTask(UserDO userDO) {
-    }
-
     /**
-     *  //新用户注册成功，初始化信息，发放福利等 TODO
+     *  //新用户注册成功，初始化信息，发放福利等
      * @param
      * @since 2022/11/2
      * @return
      */
+    private void userRegisterInitTask(UserDO userDO) {
+        NewUserCouponRequestVo request = new NewUserCouponRequestVo();
+        request.setName(userDO.getName());
+        request.setUserId(userDO.getId());
+        JsonData jsonData = couponFeginService.addNewUserCoupon(request);
+        log.info("发放新用户注册优惠券成功，{}",jsonData.toString());
+    }
+
+
     private boolean checkUnique(String mail) {
 
         QueryWrapper<UserDO> queryWrapper = new QueryWrapper<UserDO>().eq("mail", mail);
@@ -160,9 +178,5 @@ public class UserServiceImpl implements UserService {
         return userDOList.size() > 0 ? false : true;
     }
 
-//    @PostMapping("/refresh_token")
-//    public JsonData getRefreshToken(Map<String,Object> param){
-//
-//
-//    }
+
 }
