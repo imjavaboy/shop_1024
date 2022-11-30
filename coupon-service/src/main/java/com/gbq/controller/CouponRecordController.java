@@ -2,12 +2,14 @@ package com.gbq.controller;
 
 
 import com.gbq.enums.BizCodeEnum;
+import com.gbq.request.LockCouponRecordRequest;
 import com.gbq.service.CouponRecordService;
 import com.gbq.util.JsonData;
 import com.gbq.vo.CouponRecordVo;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -44,5 +46,30 @@ public class CouponRecordController {
         return couponRecordVo == null ? JsonData.buildSuccess(BizCodeEnum.COUPON_NO_EXITS) : JsonData.buildSuccess(couponRecordVo);
 
     }
+
+
+    @ApiOperation("rpc-锁定，优惠券记录")
+    @PostMapping("lock_records")
+    public JsonData lockCouponRecords(@ApiParam("锁定优惠券请求对象") @RequestBody LockCouponRecordRequest recordRequest){
+
+
+        JsonData jsonData = couponRecordService.lockCouponRecords(recordRequest);
+
+        return jsonData;
+
+    }
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+    @GetMapping("send_message")
+    public JsonData send(){
+
+
+        rabbitTemplate.convertAndSend("coupon.event.exchange","coupon.release.delay.routing.key","this is coupon record lock msg");
+
+
+        return JsonData.buildSuccess();
+
+    }
+
 }
 

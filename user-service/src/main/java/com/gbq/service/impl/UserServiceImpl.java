@@ -18,7 +18,6 @@ import com.gbq.service.UserService;
 import com.gbq.util.CommonUtil;
 import com.gbq.util.JWTUtil;
 import com.gbq.util.JsonData;
-import io.seata.spring.annotation.GlobalTransactional;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.Md5Crypt;
 import org.apache.commons.lang3.StringUtils;

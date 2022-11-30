@@ -63,10 +63,10 @@ aliyun:
     bucketname: shope-mall
 
 
-seata:
-  tx-service-group: ${spring.application.name}-group
-  service:
-    grouplist:
-      xdclass: 8.140.125.78:8091
-    vgroup-mapping:
-      xdclass-user-service-group: xdclass
+#seata:
+#  tx-service-group: ${spring.application.name}-group
+#  service:
+#    grouplist:
+#      xdclass: 8.140.125.78:8091
+#    vgroup-mapping:
+#      xdclass-user-service-group: xdclass
